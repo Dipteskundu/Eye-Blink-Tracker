@@ -3,6 +3,7 @@ import { SessionResult } from '../types';
 
 interface SummaryPanelProps {
   result: SessionResult;
+  isDarkMode?: boolean;
 }
 
 const TIPS: Record<string, string[]> = {
@@ -45,7 +46,7 @@ function getCategory(score: number): string {
   return 'critical';
 }
 
-export default function SummaryPanel({ result }: SummaryPanelProps) {
+export default function SummaryPanel({ result, isDarkMode = false }: SummaryPanelProps) {
   const { totalBlinks, blinksPerMinute, score, duration } = result;
   const category   = getCategory(score);
   const tips       = TIPS[category] || TIPS.critical;
@@ -61,21 +62,25 @@ export default function SummaryPanel({ result }: SummaryPanelProps) {
           { id: 'stat-rate-bpm', label: 'Per Minute', value: blinksPerMinute.toFixed(1) },
           { id: 'stat-duration', label: 'Duration', value: durationLabel },
         ].map(({ id, label, value }) => (
-          <div id={id} key={label} className="bg-gray-50 border border-gray-200 rounded-lg p-2 text-center">
-            <div className="font-bold text-gray-800 text-base">{value}</div>
-            <div className="text-xs text-gray-400">{label}</div>
+          <div id={id} key={label} className={`rounded-lg p-2 text-center border transition-colors duration-200 ${
+            isDarkMode 
+              ? 'bg-slate-950 border-slate-800' 
+              : 'bg-gray-50 border-gray-200'
+          }`}>
+            <div className={`font-bold text-base transition-colors duration-200 ${isDarkMode ? 'text-slate-100' : 'text-gray-800'}`}>{value}</div>
+            <div className={`text-xs transition-colors duration-200 ${isDarkMode ? 'text-slate-500' : 'text-gray-400'}`}>{label}</div>
           </div>
         ))}
       </div>
 
       {/* Tips */}
-      <p className="font-semibold text-gray-700 text-xs uppercase tracking-wide mb-2">
+      <p className={`font-semibold text-xs uppercase tracking-wide mb-2 ${isDarkMode ? 'text-slate-400' : 'text-gray-700'}`}>
         Recommendations
       </p>
       <ul className="space-y-1 mb-3">
         {tips.map((tip, i) => (
-          <li key={i} className="flex gap-2 text-xs text-gray-600">
-            <span className="text-blue-400 mt-0.5 flex-shrink-0">•</span>
+          <li key={i} className={`flex gap-2 text-xs transition-colors duration-200 ${isDarkMode ? 'text-slate-300' : 'text-gray-600'}`}>
+            <span className={`${isDarkMode ? 'text-blue-450' : 'text-blue-400'} mt-0.5 flex-shrink-0`}>•</span>
             <span>{tip}</span>
           </li>
         ))}
@@ -83,11 +88,15 @@ export default function SummaryPanel({ result }: SummaryPanelProps) {
 
       {/* Doctor alert — only shown when score <= 2 */}
       {needsDoctor && (
-        <div id="doctor-warning-alert" className="bg-red-50 border-2 border-red-400 rounded-xl p-3 text-center">
-          <div className="text-red-700 font-bold text-sm mb-1">
+        <div id="doctor-warning-alert" className={`border-2 rounded-xl p-3 text-center transition-colors duration-200 ${
+          isDarkMode 
+            ? 'bg-red-950/20 border-red-900/50' 
+            : 'bg-red-50 border-red-400'
+        }`}>
+          <div className={`font-bold text-sm mb-1 ${isDarkMode ? 'text-red-400' : 'text-red-700'}`}>
             ⚠️ Please Contact a Doctor
           </div>
-          <p className="text-red-600 text-xs leading-relaxed">
+          <p className={`text-xs leading-relaxed ${isDarkMode ? 'text-red-300/95' : 'text-red-600'}`}>
             Your blink rate is critically low. This can cause severe dry eye and corneal damage.
             Please consult an ophthalmologist or optometrist as soon as possible.
           </p>

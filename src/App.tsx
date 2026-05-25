@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Sun, Moon } from 'lucide-react';
 import ScoreDisplay from './components/ScoreDisplay';
 import SummaryPanel from './components/SummaryPanel';
 import ErrorMessage from './components/ErrorMessage';
@@ -28,6 +29,35 @@ export default function App() {
   const [blinkCount, setBlinkCount] = useState<number>(0);
   const [loading, setLoading]       = useState<boolean>(false);
   const [isExtension, setIsExtension] = useState<boolean>(false);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('eye-blink-tracker-theme');
+      if (saved) return saved === 'dark';
+    }
+    return false;
+  });
+
+  const toggleTheme = useCallback(() => {
+    setIsDarkMode(prev => {
+      const next = !prev;
+      localStorage.setItem('eye-blink-tracker-theme', next ? 'dark' : 'light');
+      if (typeof window !== 'undefined' && (window as any).chrome?.storage?.local) {
+        (window as any).chrome.storage.local.set({ theme: next ? 'dark' : 'light' });
+      }
+      return next;
+    });
+  }, []);
+
+  // Sync theme with extension storage on load
+  useEffect(() => {
+    if (isExtension && (window as any).chrome?.storage?.local) {
+      (window as any).chrome.storage.local.get(['theme'], (data: any) => {
+        if (data.theme) {
+          setIsDarkMode(data.theme === 'dark');
+        }
+      });
+    }
+  }, [isExtension]);
 
   // References for Web Sandbox Mode
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -348,7 +378,7 @@ export default function App() {
   const progressPct = duration > 0 ? Math.min((elapsed / duration) * 100, 100) : 0;
 
   return (
-    <div className="w-80 bg-white font-sans overflow-hidden border border-gray-100 rounded-lg shadow-xl">
+    <div id="app-container" className={`w-80 ${isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-gray-100 text-gray-800'} font-sans overflow-hidden border rounded-lg shadow-xl transition-colors duration-200`}>
       {/* Hidden local video elements used for browser-sandbox analysis */}
       {!isExtension && status === 'running' && (
         <div style={{ display: 'none' }}>
@@ -357,30 +387,52 @@ export default function App() {
         </div>
       )}
 
-      {/* Header banner */}
-      <div className="bg-blue-800 px-4 py-3 flex items-center gap-2">
-        <span className="text-2xl">👁</span>
-        <div>
-          <h1 className="text-white font-bold text-base leading-tight">Eye Blink Tracker</h1>
-          <p className="text-blue-100/80 text-[10px] uppercase font-semibold">
-            {isExtension ? 'Chrome Extension Active' : 'Web Sandboxed Preview'}
-          </p>
+      {/* Header banner with Theme Toggle */}
+      <div id="header-banner" className={`${isDarkMode ? 'bg-slate-950 border-b border-slate-800' : 'bg-blue-800'} px-4 py-3 flex items-center justify-between transition-colors duration-200`}>
+        <div className="flex items-center gap-2">
+          <span className="text-2xl" id="logo-icon">👁</span>
+          <div>
+            <h1 className="text-white font-bold text-base leading-tight">Eye Blink Tracker</h1>
+            <p className={`${isDarkMode ? 'text-slate-400' : 'text-blue-100/80'} text-[10px] uppercase font-semibold`}>
+              {isExtension ? 'Chrome Extension Active' : 'Web Sandboxed Preview'}
+            </p>
+          </div>
         </div>
+        <button
+          id="theme-toggle"
+          onClick={toggleTheme}
+          aria-label="Toggle Theme"
+          className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+            isDarkMode 
+              ? 'bg-slate-800 text-yellow-400 border-slate-700 hover:bg-slate-700' 
+              : 'bg-blue-700 text-white border-blue-600 hover:bg-blue-900/50'
+          }`}
+        >
+          {isDarkMode ? (
+            <Sun className="w-4 h-4" />
+          ) : (
+            <Moon className="w-4 h-4" />
+          )}
+        </button>
       </div>
 
       <div className="p-4">
         {/* Error Notification banner */}
-        {error && <ErrorMessage message={error} onDismiss={() => setError(null)} />}
+        {error && <ErrorMessage message={error} onDismiss={() => setError(null)} isDarkMode={isDarkMode} />}
 
         {/* ── IDLE SETUP PANEL ── */}
         {status === 'idle' && (
           <div>
             {/* Setup instructions checklist */}
-            <div id="checklist-setup" className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-4">
-              <p className="text-blue-800 font-semibold text-xs mb-2">
+            <div id="checklist-setup" className={`border rounded-lg p-3 mb-4 transition-colors duration-200 ${
+              isDarkMode 
+                ? 'bg-slate-950 border-slate-800 text-slate-300' 
+                : 'bg-blue-50 border-blue-100 text-blue-800'
+            }`}>
+              <p className={`font-semibold text-xs mb-2 ${isDarkMode ? 'text-blue-400' : 'text-blue-800'}`}>
                 ✅ Pre-Session Health Checklist:
               </p>
-              <ul className="text-[11px] text-blue-700 space-y-1">
+              <ul className={`text-[11px] space-y-1 ${isDarkMode ? 'text-slate-400' : 'text-blue-700'}`}>
                 <li>• Position your face in full frame view</li>
                 <li>• Use bright front lighting (no backlights)</li>
                 <li>• Sit approx 50–80 cm from the camera</li>
@@ -390,7 +442,7 @@ export default function App() {
             </div>
 
             {/* Set tracking duration */}
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+            <label className={`block text-xs font-semibold uppercase tracking-wide mb-1.5 ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
               Select Session Duration
             </label>
             <div className="flex gap-2 mb-4">
@@ -401,8 +453,12 @@ export default function App() {
                   onClick={() => setDuration(opt.value)}
                   className={`flex-1 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
                     duration === opt.value
-                      ? 'bg-blue-700 text-white border-blue-700 shadow-sm'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400'
+                      ? isDarkMode
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : 'bg-blue-700 text-white border-blue-700 shadow-sm'
+                      : isDarkMode
+                        ? 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700 hover:text-white'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400'
                   }`}
                 >
                   {opt.label}
@@ -414,7 +470,11 @@ export default function App() {
             <button
               id="start-tracking-btn"
               onClick={startSession}
-              className="w-full bg-blue-700 hover:bg-blue-800 text-white py-3 rounded-lg font-bold text-sm transition-colors cursor-pointer shadow-md active:scale-[0.98]"
+              className={`w-full text-white py-3 rounded-lg font-bold text-sm transition-colors cursor-pointer shadow-md active:scale-[0.98] ${
+                isDarkMode 
+                  ? 'bg-blue-600 hover:bg-blue-700' 
+                  : 'bg-blue-700 hover:bg-blue-800'
+              }`}
             >
               Start Tracking
             </button>
@@ -427,32 +487,32 @@ export default function App() {
             {loading ? (
               <div id="loading-spinner" className="text-center py-6">
                 <div className="text-3xl animate-spin mb-2">⏳</div>
-                <p className="text-gray-600 text-xs font-medium">Initializing trackers & loading models…</p>
-                <p className="text-gray-400 text-[10px] mt-1">First load initializes the MediaPipe model via CDN (approx 3-5 seconds)</p>
+                <p className={`text-xs font-medium ${isDarkMode ? 'text-slate-300' : 'text-gray-600'}`}>Initializing trackers & loading models…</p>
+                <p className={`text-[10px] mt-1 ${isDarkMode ? 'text-slate-500' : 'text-gray-400'}`}>First load initializes the MediaPipe model via CDN (approx 3-5 seconds)</p>
               </div>
             ) : (
               <>
                 {/* Visual numbers overlay */}
                 <div id="count-radial-view" className="text-center mb-4">
-                  <div className="text-5xl font-black text-blue-700 leading-none antialiased">{blinkCount}</div>
-                  <div className="text-gray-400 uppercase text-[10px] tracking-widest font-semibold mt-1">blinks counted</div>
+                  <div className={`text-5xl font-black leading-none antialiased ${isDarkMode ? 'text-blue-400' : 'text-blue-700'}`}>{blinkCount}</div>
+                  <div className={`uppercase text-[10px] tracking-widest font-semibold mt-1 ${isDarkMode ? 'text-slate-400' : 'text-gray-400'}`}>blinks counted</div>
                 </div>
 
                 {/* Progress outline */}
-                <div id="progress-capsule" className="bg-gray-100 rounded-full h-2 mb-1.5 overflow-hidden">
+                <div id="progress-capsule" className={`rounded-full h-2 mb-1.5 overflow-hidden ${isDarkMode ? 'bg-slate-800' : 'bg-gray-100'}`}>
                   <div
-                    className="bg-blue-500 h-full rounded-full transition-all duration-1000"
+                    className={`h-full rounded-full transition-all duration-1010 ${isDarkMode ? 'bg-blue-400' : 'bg-blue-500'}`}
                     style={{ width: `${progressPct}%` }}
                   />
                 </div>
-                <div className="flex justify-between text-[11px] font-semibold text-gray-400 mb-4">
+                <div className={`flex justify-between text-[11px] font-semibold mb-4 ${isDarkMode ? 'text-slate-400' : 'text-gray-400'}`}>
                   <span>{elapsed}s elapsed</span>
                   <span>{duration}s total</span>
                 </div>
               </>
             )}
 
-            <p className="text-[11px] text-gray-400 text-center mb-4 leading-normal">
+            <p className={`text-[11px] text-center mb-4 leading-normal ${isDarkMode ? 'text-slate-500' : 'text-gray-400'}`}>
               {isExtension 
                 ? 'Tracking is isolated in the background and continues even if you close this popup.'
                 : 'Interactive Sandbox: keep this browser tab focused for precise calculations.'}
@@ -461,7 +521,11 @@ export default function App() {
             <button
               id="stop-tracking-btn"
               onClick={stopSession}
-              className="w-full border border-red-200 text-red-600 hover:bg-red-50/50 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer"
+              className={`w-full border py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                isDarkMode 
+                  ? 'border-red-900/50 text-red-400 hover:bg-red-950/30' 
+                  : 'border-red-200 text-red-600 hover:bg-red-50/50'
+              }`}
             >
               Cancel Session
             </button>
@@ -471,12 +535,16 @@ export default function App() {
         {/* ── DONE VIEW METRICS ── */}
         {status === 'done' && result && (
           <div>
-            <ScoreDisplay score={result.score} />
-            <SummaryPanel result={result} />
+            <ScoreDisplay score={result.score} isDarkMode={isDarkMode} />
+            <SummaryPanel result={result} isDarkMode={isDarkMode} />
             <button
               id="retrack-btn"
               onClick={resetToIdle}
-              className="w-full mt-4 bg-blue-700 hover:bg-blue-800 text-white py-3 rounded-lg font-bold text-sm transition-colors cursor-pointer"
+              className={`w-full mt-4 text-white py-3 rounded-lg font-bold text-sm transition-colors cursor-pointer shadow-sm ${
+                isDarkMode 
+                  ? 'bg-blue-600 hover:bg-blue-700' 
+                  : 'bg-blue-700 hover:bg-blue-800'
+              }`}
             >
               Track Again
             </button>
