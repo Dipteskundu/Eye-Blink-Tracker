@@ -1,0 +1,6 @@
+{
+  "name": "Eye Blink Tracker",
+  "description": "Privacy-first Chrome Extension that monitors your eye blink rate in real time to reduce digital eye strain.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Eye Blink Tracker — Offscreen</title>
+  </head>
+  <body>
+    <!--
+      Hidden video and canvas used for MediaPipe face detection.
+      These elements are intentionally not visible to the user.
+      The offscreen document runs entirely in the background.
+    -->
+    <video
+      id="video"
+      width="320"
+      height="240"
+      autoplay
+      muted
+      playsinline
+      style="display: none;"
+    ></video>
+    <canvas
+      id="canvas"
+      width="320"
+      height="240"
+      style="display: none;"
+    ></canvas>
+
+    <script type="module" src="offscreen.js"></script>
+  </body>
+</html>

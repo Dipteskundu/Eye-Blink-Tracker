@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Eye Blink Tracker",
+  "version": "1.0.0",
+  "description": "Monitor your eye blink rate in real time to reduce digital eye strain. 100% private — all processing is local.",
+  "permissions": [
+    "storage",
+    "offscreen"
+  ],
+  "host_permissions": [],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "Eye Blink Tracker"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "offscreen.html",
+        "offscreen.js"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "minimum_chrome_version": "109"
+}

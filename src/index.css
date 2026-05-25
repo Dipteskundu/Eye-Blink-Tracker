@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+/* Popup body — fixed width, no scrollbar */
+body {
+  margin: 0;
+  padding: 0;
+  width: 320px;
+  min-height: 100px;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  width: 320px;
+}
