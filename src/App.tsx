@@ -66,6 +66,7 @@ export default function App() {
   const animFrameIdRef = useRef<number | null>(null);
   const trackerIntervalRef = useRef<any>(null);
   const landmarkerRef = useRef<any>(null);
+  const workerRef = useRef<Worker | null>(null);
 
   // ── DETECTION STATE DETECT ENVIRONMENT ──────────────────────────────────────
   useEffect(() => {
@@ -115,6 +116,11 @@ export default function App() {
     if (trackerIntervalRef.current) {
       clearInterval(trackerIntervalRef.current);
       trackerIntervalRef.current = null;
+    }
+    if (workerRef.current) {
+      workerRef.current.postMessage({ action: 'stop' });
+      workerRef.current.terminate();
+      workerRef.current = null;
     }
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => track.stop());
@@ -208,93 +214,120 @@ export default function App() {
       // Detection state variables
       let localBlinks = 0;
       let consecutiveBelow = 0;
-      let lastFrameMs = 0;
       let noFaceFirstMs: number | null = null;
       let errorSent = false;
       const startTime = Date.now();
 
-      // Timer updates every 1s
-      trackerIntervalRef.current = setInterval(() => {
-        const secondsSpent = Math.floor((Date.now() - startTime) / 1000);
-        setElapsed(prev => {
-          const nextSec = Math.min(secondsSpent, selectedDuration);
-          if (nextSec >= selectedDuration) {
-            // Terminate session
-            destroyLocalTracker();
-            setStatus('done');
-            
-            const minutes = selectedDuration / 60;
-            const bpm = localBlinks / minutes;
-            const finalScore = localComputeScore(bpm);
+      // Create inline Web Worker to act as a background high-frequency ticker.
+      // Web Workers are immune to browser tab background/minimization throttling.
+      const blob = new Blob([`
+        let timer = null;
+        let secondTimer = null;
+        self.onmessage = function(e) {
+          if (e.data.action === 'start') {
+            if (timer) clearInterval(timer);
+            if (secondTimer) clearInterval(secondTimer);
 
-            setResult({
-              totalBlinks: localBlinks,
-              blinksPerMinute: Math.round(bpm * 10) / 10,
-              score: finalScore,
-              duration: selectedDuration,
-            });
+            const interval = e.data.interval || 66; // approx 15 FPS
+            timer = setInterval(function() {
+              self.postMessage({ type: 'DETECT' });
+            }, interval);
+
+            secondTimer = setInterval(function() {
+              self.postMessage({ type: 'SECOND' });
+            }, 1000);
+          } else if (e.data.action === 'stop') {
+            if (timer) {
+              clearInterval(timer);
+              timer = null;
+            }
+            if (secondTimer) {
+              clearInterval(secondTimer);
+              secondTimer = null;
+            }
           }
-          return nextSec;
-        });
-      }, 1000);
+        };
+      `], { type: 'application/javascript' });
+      
+      const workerUrl = URL.createObjectURL(blob);
+      const worker = new Worker(workerUrl);
+      workerRef.current = worker;
 
-      // Main landmarker frame loop
-      const frameLoop = (nowMs: number) => {
+      worker.onmessage = (e: MessageEvent) => {
         if (!localStreamRef.current) return;
 
-        animFrameIdRef.current = requestAnimationFrame(frameLoop);
+        if (e.data.type === 'SECOND') {
+          const secondsSpent = Math.floor((Date.now() - startTime) / 1000);
+          setElapsed(prev => {
+            const nextSec = Math.min(secondsSpent, selectedDuration);
+            if (nextSec >= selectedDuration) {
+              // Terminate session
+              destroyLocalTracker();
+              setStatus('done');
+              
+              const minutes = selectedDuration / 60;
+              const bpm = localBlinks / minutes;
+              const finalScore = localComputeScore(bpm);
 
-        // Frame rate capping
-        if (nowMs - lastFrameMs < FRAME_INTERVAL_MS) return;
-        lastFrameMs = nowMs;
+              setResult({
+                totalBlinks: localBlinks,
+                blinksPerMinute: Math.round(bpm * 10) / 10,
+                score: finalScore,
+                duration: selectedDuration,
+              });
+            }
+            return nextSec;
+          });
+        } else if (e.data.type === 'DETECT') {
+          const video = videoRef.current;
+          if (!video || video.paused || video.ended) return;
 
-        const video = videoRef.current;
-        if (!video || video.paused || video.ended) return;
-
-        let results;
-        try {
-          results = landmarkerRef.current.detectForVideo(video, nowMs);
-        } catch (e) {
-          return; // Skip on transient failures
-        }
-
-        if (!results.faceLandmarks || results.faceLandmarks.length === 0) {
-          if (noFaceFirstMs === null) {
-            noFaceFirstMs = Date.now();
-          } else if (Date.now() - noFaceFirstMs > 5000 && !errorSent) {
-            errorSent = true;
-            setError(
-              'Cannot detect your eyes. Please ensure:\n' +
-              '• Your face is fully visible to the camera\n' +
-              '• The room is well lit (no strong backlight)\n' +
-              '• You are 50–80 cm from the camera\n' +
-              '• No sunglasses or extreme viewing angle'
-            );
+          const nowMs = performance.now();
+          let results;
+          try {
+            results = landmarkerRef.current.detectForVideo(video, nowMs);
+          } catch (err) {
+            return; // Skip on transient failures
           }
-          return;
-        }
 
-        // Face found, reset counters
-        noFaceFirstMs = null;
-        errorSent = false;
-
-        const lm = results.faceLandmarks[0];
-        const earRight = localComputeEAR(lm, RIGHT_EYE_IDX);
-        const earLeft  = localComputeEAR(lm, LEFT_EYE_IDX);
-        const ear      = (earRight + earLeft) / 2.0;
-
-        if (ear < EAR_THRESHOLD) {
-          consecutiveBelow++;
-        } else {
-          if (consecutiveBelow >= BLINK_CONSEC_FRAMES) {
-            localBlinks++;
-            setBlinkCount(localBlinks);
+          if (!results.faceLandmarks || results.faceLandmarks.length === 0) {
+            if (noFaceFirstMs === null) {
+              noFaceFirstMs = Date.now();
+            } else if (Date.now() - noFaceFirstMs > 5000 && !errorSent) {
+              errorSent = true;
+              setError(
+                'Cannot detect your eyes. Please ensure:\n' +
+                '• Your face is fully visible to the camera\n' +
+                '• The room is well lit (no strong backlight)\n' +
+                '• You are 50–80 cm from the camera\n' +
+                '• No sunglasses or extreme viewing angle'
+              );
+            }
+            return;
           }
-          consecutiveBelow = 0;
+
+          // Face found, reset counters
+          noFaceFirstMs = null;
+          errorSent = false;
+
+          const lm = results.faceLandmarks[0];
+          const earRight = localComputeEAR(lm, RIGHT_EYE_IDX);
+          const earLeft  = localComputeEAR(lm, LEFT_EYE_IDX);
+          const ear      = (earRight + earLeft) / 2.0;
+
+          if (ear < EAR_THRESHOLD) {
+            consecutiveBelow++;
+          } else {
+            if (consecutiveBelow >= BLINK_CONSEC_FRAMES) {
+              localBlinks++;
+              setBlinkCount(localBlinks);
+            }
+            consecutiveBelow = 0;
+          }
         }
       };
 
-      animFrameIdRef.current = requestAnimationFrame(frameLoop);
+      worker.postMessage({ action: 'start', interval: FRAME_INTERVAL_MS });
 
     } catch (err: any) {
       console.error('Local face tracker initiation error:', err);
