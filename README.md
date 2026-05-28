@@ -83,11 +83,30 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000) using your web browser to view, iterate, and run your tracking session.
 
 ### 4. Build for Production
-To bundle and deploy the static app:
+To bundle and deploy the static app or build the unpackaged Chrome Extension:
 ```bash
 npm run build
 ```
-The output assets will be generated in the `/dist` folder.
+The output assets and extension-specific manifests will be compiled directly in the `/dist` folder.
+
+---
+
+## 🧩 How to Load as a Chrome Extension
+
+Since the application contains native extension supports (`manifest.json`, background service workers, and offscreen canvas documents), you can load it directly into Google Chrome as an Unpacked Extension:
+
+1. **Build the extension**:
+   Run `npm run build` locally. This creates the `/dist` directory containing all pre-requisite code modules.
+2. **Open Chrome Extensions Manager**:
+   Open a new tab in Google Chrome and navigate to: `chrome://extensions/`
+3. **Enable Developer Mode**:
+   In the upper-right corner of the Extensions page, toggle the **Developer mode** switch to **ON**.
+4. **Load the Unpacked Folder**:
+   Click the **Load unpacked** button in the top-left corner.
+5. **Select the Directory**:
+   In the file selection dialog, navigate to your cloned repository and select the **`/dist`** folder.
+6. **Pin the Extension**:
+   Click the Extension puzzle-piece icon in your Chrome toolbar and pin **Eye Blink Tracker**. Click the icon to open your popup and begin tracking blinks seamlessly in the background!
 
 ---
 
